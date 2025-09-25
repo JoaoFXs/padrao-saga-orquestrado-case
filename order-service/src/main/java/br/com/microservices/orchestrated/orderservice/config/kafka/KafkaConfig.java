@@ -1,6 +1,7 @@
 package br.com.microservices.orchestrated.orderservice.config.kafka;
 
 import lombok.RequiredArgsConstructor;
+import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -10,6 +11,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.annotation.EnableKafka;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
+import org.springframework.kafka.config.TopicBuilder;
 import org.springframework.kafka.core.*;
 
 import java.util.HashMap;
@@ -21,13 +23,10 @@ import java.util.Map;
  * e os "consumidores" (quem ouve mensagens) que a aplicação utilizará.
  */
 @EnableKafka // (Obrigatório) Ativa a detecção de anotações @KafkaListener pelo Spring. Sem isso, os consumidores declarativos não funcionarão.
-@Configuration // Indica ao Spring que esta é uma classe de configuração, ou seja, ela define Beans que serão gerenciados pelo contêiner do Spring.
-@RequiredArgsConstructor // Anotação do Lombok que cria um construtor com os campos 'final'. É uma boa prática para injeção de dependências, embora não esteja sendo usada nesta classe no momento.
+@Configuration
+@RequiredArgsConstructor
 public class KafkaConfig {
 
-    // ------------------- PROPRIEDADES INJETADAS DO application.yml ------------------- //
-    // O uso de @Value desacopla a configuração do código, permitindo que você altere
-    // endereços de servidores, nomes de grupos, etc., sem precisar recompilar a aplicação.
 
     /**
      * Endereço do(s) servidor(es) Kafka. A aplicação usará este endereço para se conectar ao cluster.
@@ -55,6 +54,16 @@ public class KafkaConfig {
     @Value("${spring.kafka.consumer.auto-offset-reset}")
     private String autoOffsetReset;
 
+    /** Captura Topico **/
+    @Value("${spring.kafka.topic.start-saga}")
+    private String startSagaTopic;
+    /** Captura Topico **/
+    @Value("${spring.kafka.topic.notify-ending}")
+    private String notifyEndingTopic;
+
+    /** Valores Fixos para partição e replicas para criação de tópicos **/
+    private static final Integer PARTITION_COUNT = 1;
+    private static final Integer REPLICA_COUNT = 1;
 
     // ------------------- CONFIGURAÇÕES DO CONSUMER ------------------- //
 
@@ -80,9 +89,6 @@ public class KafkaConfig {
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class); // (Desserializador do Valor) O mesmo que o anterior, mas para o corpo da mensagem.
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, autoOffsetReset); // Define a estratégia de leitura inicial do tópico.
 
-        // Uso Futuro: Você pode adicionar outras propriedades importantes aqui, como:
-        // props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, 10); // Controla quantas mensagens o consumidor busca por vez.
-        // props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false); // Desabilitar o commit automático para ter controle manual e garantir o processamento.
         return props;
     }
 
@@ -106,10 +112,6 @@ public class KafkaConfig {
         props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServer); // Endereço do servidor.
         props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class); // (Serializador da Chave) Ensina o produtor a "traduzir" a chave (String Java) para o formato de bytes que o Kafka entende.
         props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class); // (Serializador do Valor) O mesmo, mas para o corpo da mensagem.
-
-        // Uso Futuro: Configurações cruciais para a confiabilidade em produção seriam adicionadas aqui:
-        // props.put(ProducerConfig.ACKS_CONFIG, "all"); // Garante que a mensagem foi gravada com sucesso em todos os brokers líderes e suas réplicas. Essencial para não perder dados.
-        // props.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, "true"); // Evita mensagens duplicadas em caso de falha de rede e retentativas.
         return props;
     }
 
@@ -121,5 +123,27 @@ public class KafkaConfig {
     @Bean
     public KafkaTemplate<String, String> kafkaTemplate(ProducerFactory<String, String> producerFactory) {
         return new KafkaTemplate<>(producerFactory);
+    }
+
+
+    /** Método para criação de tópicos utilizando nome, replica e partições**/
+    private NewTopic buildTopic(String name){
+        return TopicBuilder
+                .name(name)
+                .replicas(REPLICA_COUNT)
+                .partitions(PARTITION_COUNT)
+                .build();
+    }
+
+    /** Configuração para iniciar o topico start-saga automaticamente durante a inicialização da aplicação **/
+    @Bean
+    public NewTopic startSagaTopic(){
+        return buildTopic(startSagaTopic);
+    }
+
+    /** Configuração para iniciar o topico notify-ending automaticamente durante a inicialização da aplicação **/
+    @Bean
+    public NewTopic notifyEndingTopic(){
+        return buildTopic(notifyEndingTopic);
     }
 }

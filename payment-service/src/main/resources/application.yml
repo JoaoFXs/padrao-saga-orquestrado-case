@@ -19,8 +19,8 @@ spring:
     bootstrap-servers: ${KAFKA_BROKER:localhost:9092}
     topic:
       orchestrator: orchestrator
-      product-validation-success: payment-success
-      product-validation-error: payment-fail
+      payment-success: payment-success
+      payment-fail: payment-fail
     consumer:
       group-id: payment-group
       auto-offset-reset: latest
