@@ -7,7 +7,7 @@ import lombok.NoArgsConstructor;
 
 /** ENUM para que o orchestrador saiba qual serviço esta sendo utilizado **/
 @Getter
-@NoArgsConstructor
+
 @AllArgsConstructor
 public enum EEventSource {
     ORCHESTRATOR,
