@@ -19,28 +19,47 @@ import java.util.UUID;
 @Service
 @AllArgsConstructor
 public class OrderService {
-
+    /** Pattern do transactionId **/
     private static final String TRANSACTION_ID_PATTERN = "%s_%s";
 
+    /** Conversor objeto e string **/
     private final JsonUtil jsonUtil;
+    /** Component para envio de saga para produtor start-saga **/
     private final SagaProducer producer;
+
+    /** Repositorios  **/
     private final OrderRepository orderRepository;
     private final EventService eventService;
+
+    /**
+     * Método para geração de Order, salvamento em repository e criação + envio de evento  para producer
+     * @param request OrderRequest gerado
+     * @return Order gerado
+     * **/
     public Order createOrder(OrderRequest request){
         var order = Order
                     .builder()
                     .products(request.getProducts())
                     .createdAt(LocalDateTime.now())
                     .transactionId(
+                            /** Geração de transactionId unico **/
                         String.format(TRANSACTION_ID_PATTERN, Instant.now().toEpochMilli(), UUID.randomUUID())
                     )
                     .build();
         orderRepository.save(order);
+        /** Converte em string/json antes do envio **/
         producer.sendEvent(jsonUtil.toJson(createPayload(order)));
         return order;
     }
 
-   private Event createPayload(Order order){
+
+    /**
+     *  Método para criação de payload de evento e persistencia em mongodb.
+     *
+     * @param order Order gerado em createOrder
+     * @return event gerado
+     */
+    private Event createPayload(Order order){
         var event = Event
                     .builder()
                     .payload(order)

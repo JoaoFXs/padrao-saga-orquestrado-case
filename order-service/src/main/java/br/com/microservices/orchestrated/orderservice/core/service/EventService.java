@@ -11,7 +11,11 @@ public class EventService {
 
     private final EventRepository repository;
 
-
+    /**
+     *  Método responsavel por salvar event em collection do mongodb
+     * @param event Evento a ser salvo
+     * @return evento salvo retornado
+     * **/
     public Event save(Event event){
         return repository.save(event);
     }
