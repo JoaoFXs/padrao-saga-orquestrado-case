@@ -10,8 +10,8 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.List;
 
-import static sun.util.locale.LocaleUtils.isEmpty;
 
+import static org.springframework.util.ObjectUtils.isEmpty;
 @Service
 @AllArgsConstructor
 public class EventService {
