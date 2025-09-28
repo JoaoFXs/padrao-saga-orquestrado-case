@@ -155,13 +155,25 @@ public class ProductValidationService {
         event.addToHistory(history);
     }
 
+
+    /**
+     * Método responsavel por lidar com rollback pendings e enviar para o orchestrator
+     * @param event
+     * @param message
+     */
     private void handleFailCurrentNotExecuted(Event event, String message){
         event.setStatus(ESagaStatus.ROLLBACK_PENDING);
         event.setSource(CURRENT_SOURCE);
         addHistory(event, "Fail to validate products: ".concat(message));
     }
 
+    /**
+     * Método para tratar rollbackEvents, utilizado direto no listener do kafka consumer. Adiciona falha como status, e realiza o rollback.
+     *
+     * @param event
+     */
     public void rollbackEvent(Event event){
+        /** Utilitario 1 rollbackEvent **/
         changeValidationToFail(event);
         event.setStatus(ESagaStatus.FAIL);
         event.setSource(CURRENT_SOURCE);
@@ -169,6 +181,11 @@ public class ProductValidationService {
         producer.sendEvent(jsonUtil.toJson(event));
     }
 
+    /**
+     * Utilitario 1 rollbackEvent: Utilizado para persistir o rollback, transformando o success como falso e salvando a validação.
+     * É realizado uma verificação se existe o id e transactionid no banco de dados, se nao existir, salva mesmo para manter registrado.
+     * @param event
+     */
     private void changeValidationToFail(Event event){
         validationRepository.findByOrderIdAndTransactionId(event.getPayload().getId(), event.getTransactionId())
                 .ifPresentOrElse(validation -> {
