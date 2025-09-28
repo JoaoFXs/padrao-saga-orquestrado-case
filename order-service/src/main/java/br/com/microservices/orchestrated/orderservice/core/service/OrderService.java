@@ -62,6 +62,7 @@ public class OrderService {
     private Event createPayload(Order order){
         var event = Event
                     .builder()
+                .transactionId(order.getTransactionId())
                     .payload(order)
                     .orderId(order.getId())
                     .createdAt(LocalDateTime.now())
