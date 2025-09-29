@@ -28,29 +28,47 @@ public class PaymentService {
     private final KafkaProducer producer;
     private final PaymentRepository paymentRepository;
 
-
+    /**
+     * Método que realizara o pagamento recebendo um evento de success no consumer kafka
+     * @param event
+     */
     public void realizePayment(Event event){
         try{
+            /** realizePayment util 1 - Verifica se ja existe alguma transação **/
             checkCurrentValidation(event);
+            /** realizePayment util 2 - Cria um pagamento pendente **/
             createPendingPayment(event);
+            /** Procura pelo orderId e transactionID e valida se o amount é maior que 0.1 **/
             var payment = findByOrderIdAndTransactionId(event);
             validateAmount(payment.getTotalAmount());
+            /** Muda o pagamento para success **/
             changePaymentToSuccess(payment);
+            /** Lida com sucesso mudando evento **/
             handleSuccess(event);
         } catch (Exception e) {
                log.error("Error Trying to make payment: ", e);
+            /** Lida com erro **/
                handleFailCurrentNotExecuted(event, e.getMessage());
         }
+        /** Envia evento para producer orchestrate **/
         producer.sendEvent(jsonUtil.toJson(event));
     }
 
+    /**
+     *  realizePayment util 1 - Verifica se o evento ja existe uma transação em andamento
+     * @param event
+     */
     private void checkCurrentValidation(Event event){
         if( paymentRepository.existsByOrderIdAndTransactionId(event.getOrderId(), event.getTransactionId())){
-            throw new RuntimeException("There's another transactionId for this validation.");
+            throw new RuntimeException("There's another transactionId for this payment.");
         }
     }
 
 
+    /**
+     * realizePayment util 2 - Cria um pagamento pendente e persiste no banco de dados
+     * @param event
+     */
     private void createPendingPayment(Event event){
         var totalAmount = calculateAmount(event);
         var totalItems = calculateTotalItems(event);
@@ -65,6 +83,12 @@ public class PaymentService {
         setEventAmountItems(event, payment);
     }
 
+    /**
+     * Calcula o total dos produtos
+     *
+     * @param event
+     * @return
+     */
     private double calculateAmount(Event event){
 
        return event
@@ -75,6 +99,11 @@ public class PaymentService {
                .reduce(REDUCE_SUM_VALUE, Double::sum);
     }
 
+    /**
+     * Calcula o total de itens
+     * @param event
+     * @return
+     */
     private int calculateTotalItems(Event event){
         return event
                 .getPayload()
@@ -84,26 +113,48 @@ public class PaymentService {
                 .reduce(REDUCE_SUM_VALUE.intValue(), Integer::sum);
     }
 
+    /**
+     * Persiste no banco de dados
+     * @param payment
+     */
     private void save(Payment payment){
         paymentRepository.save(payment);
     }
 
+    /**
+     * Seta o totalamount e totalitems no evento
+     * @param event
+     * @param payment
+     */
     private void setEventAmountItems(Event event, Payment payment){
         event.getPayload().setTotalAmount(payment.getTotalAmount());
         event.getPayload().setTotalItems(payment.getTotalItems());
     }
 
-
+    /**
+     * Valida se o amount é maior que 0.1
+     * @param totalAmount
+     */
     private void validateAmount(double totalAmount){
         if(totalAmount < MIN_AMOUNT_VALUE){
             throw new ValidationException("The minimum amount available is ".concat(MIN_AMOUNT_VALUE.toString()));
         }
     }
 
+    /**
+     * Muda o status do pagamento para success e persiste no banco de dados
+     * @param payment
+     */
     private void changePaymentToSuccess(Payment payment){
         payment.setStatus(EPaymentStatus.SUCCESS);
         save(payment);
     }
+
+    /**
+     * Procura por orderid e transactionid, caso contrario trata exceção
+     * @param event
+     * @return
+     */
     private Payment findByOrderIdAndTransactionId(Event event){
         return paymentRepository.findByOrderIdAndTransactionId(event.getOrderId(), event.getTransactionId())
                 .orElseThrow(() -> new ValidationException("Payment not found by OrderID and TransactionID"));
@@ -150,21 +201,34 @@ public class PaymentService {
     }
 
 
-    /** Blodo de rollback do consumer  **/
+    /** Blodo de rollback do consumer
+     *
+     *
+     * **/
+
+    /**
+     * Metodo para realizar o rollback/ estorno, atualizando event e persistindo o payment como refund. Método chamado no consumer kafka
+     * @param event
+     */
     public void realizeRefund(Event event){
         event.setStatus(ESagaStatus.FAIL);
         event.setSource(CURRENT_SOURCE);
         try{
+
            /** Realiza rollback**/
            changePaymentStatusToRefund(event);
-            addHistory(event, "Rollback executed for payment!");
+           addHistory(event, "Rollback executed for payment!");
        } catch (Exception e) {
-            addHistory(event, "Rollback not executed for payment: ".concat(e.getMessage()));
+           addHistory(event, "Rollback not executed for payment: ".concat(e.getMessage()));
        }
 
         producer.sendEvent(jsonUtil.toJson(event));
     }
 
+    /**
+     * Realiza rollback e persiste no banco de dados como refund
+     * @param event
+     */
     private void changePaymentStatusToRefund(Event event){
         var payment = findByOrderIdAndTransactionId(event);
         payment.setStatus(EPaymentStatus.REFUND);
