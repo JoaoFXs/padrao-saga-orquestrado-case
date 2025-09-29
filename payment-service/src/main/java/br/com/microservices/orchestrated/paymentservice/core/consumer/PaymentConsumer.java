@@ -1,6 +1,7 @@
 package br.com.microservices.orchestrated.paymentservice.core.consumer;
 
 
+import br.com.microservices.orchestrated.paymentservice.core.service.PaymentService;
 import br.com.microservices.orchestrated.paymentservice.core.utils.JsonUtil;
 import lombok.AllArgsConstructor;
 import lombok.RequiredArgsConstructor;
@@ -21,13 +22,14 @@ public class PaymentConsumer {
     private String productValidationFail;
 
     private final JsonUtil jsonUtil;
-
+    private final PaymentService paymentService;
     @KafkaListener(
         groupId = "payment-group",
         topics = "payment-success"
     )
     public void consumePaymentSuccessEvent(String payload){
         log.info("Receiving payment success event {} from {} topic", payload, topicValidationSuccess);
+        paymentService.realizePayment(jsonUtil.toEvent(payload));
         var event = jsonUtil.toEvent(payload);
         log.info("Event product validation success {}", event);
     }
@@ -38,7 +40,8 @@ public class PaymentConsumer {
     )
     public void consumePaymentFailEvent(String payload){
         log.info("Receiving rollback event {} from {} topic", payload, productValidationFail);
+        paymentService.realizeRefund(jsonUtil.toEvent(payload));
         var event = jsonUtil.toEvent(payload);
-        log.info("Event product validation fail {}", event);
+        log.info("Event payment fail {}", event);
     }
 }

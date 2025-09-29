@@ -39,6 +39,7 @@ public class PaymentService {
             handleSuccess(event);
         } catch (Exception e) {
                log.error("Error Trying to make payment: ", e);
+               handleFailCurrentNotExecuted(event, e.getMessage());
         }
         producer.sendEvent(jsonUtil.toJson(event));
     }
@@ -134,6 +135,36 @@ public class PaymentService {
                 .createdAt(LocalDateTime.now())
                 .build();
         event.addToHistory(history);
+    }
+
+
+    /**
+     * Método responsavel por lidar com rollback pendings e enviar para o orchestrator
+     * @param event
+     * @param message
+     */
+    private void handleFailCurrentNotExecuted(Event event, String message){
+        event.setStatus(ESagaStatus.ROLLBACK_PENDING);
+        event.setSource(CURRENT_SOURCE);
+        addHistory(event, "Fail to realize payment: ".concat(message));
+    }
+
+
+    /** Blodo de rollback do consumer  **/
+    public void realizeRefund(Event event){
+        /** Realiza rollback**/
+        changePaymentStatusToRefund(event);
+        event.setStatus(ESagaStatus.FAIL);
+        event.setSource(CURRENT_SOURCE);
+        addHistory(event, "Rollback executed for payment!");
+        producer.sendEvent(jsonUtil.toJson(event));
+    }
+
+    private void changePaymentStatusToRefund(Event event){
+        var payment = findByOrderIdAndTransactionId(event);
+        payment.setStatus(EPaymentStatus.REFUND);
+        setEventAmountItems(event, payment);
+        save(payment);
     }
 
 }
