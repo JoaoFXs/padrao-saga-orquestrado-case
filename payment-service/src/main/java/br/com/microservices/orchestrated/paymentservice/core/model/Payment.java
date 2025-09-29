@@ -1,6 +1,6 @@
-package br.com.microservices.orchestrated.productvalidationservice.core.model;
+package br.com.microservices.orchestrated.paymentservice.core.model;
 
-
+import br.com.microservices.orchestrated.paymentservice.core.enums.EPaymentStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -14,9 +14,8 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "validation")
-public class Validation {
-
+@Table(name = "payment")
+public class Payment {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
@@ -28,7 +27,14 @@ public class Validation {
     private String transactionId;
 
     @Column(nullable = false)
-    private boolean success;
+    private int totalItems;
+
+    @Column(nullable = false)
+    private double totalAmount;
+
+    @Column(nullable = false)
+    @Enumerated(EnumType.STRING)//Anotação para pegar o valor como string
+    private EPaymentStatus status;
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -41,12 +47,12 @@ public class Validation {
         var now = LocalDateTime.now();
         createdAt = now;
         updatedAt = now;
+        /** Sempre que rodar a persistencia pela primeira vez, ira atualizar como pendente**/
+        status = EPaymentStatus.PENDING;
     }
 
     @PreUpdate
     public void preUpdate(){
         updatedAt = LocalDateTime.now();
     }
-
-
 }
