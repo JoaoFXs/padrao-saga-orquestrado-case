@@ -152,11 +152,16 @@ public class PaymentService {
 
     /** Blodo de rollback do consumer  **/
     public void realizeRefund(Event event){
-        /** Realiza rollback**/
-        changePaymentStatusToRefund(event);
         event.setStatus(ESagaStatus.FAIL);
         event.setSource(CURRENT_SOURCE);
-        addHistory(event, "Rollback executed for payment!");
+        try{
+           /** Realiza rollback**/
+           changePaymentStatusToRefund(event);
+            addHistory(event, "Rollback executed for payment!");
+       } catch (Exception e) {
+            addHistory(event, "Rollback not executed for payment: ".concat(e.getMessage()));
+       }
+
         producer.sendEvent(jsonUtil.toJson(event));
     }
 
