@@ -10,6 +10,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Data
+@Entity
 @AllArgsConstructor
 @NoArgsConstructor
 @Table(name = "orderInventory")
