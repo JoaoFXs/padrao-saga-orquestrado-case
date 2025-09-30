@@ -29,11 +29,19 @@ public class InventoryService {
     private final InventoryRepository inventoryRepository;
     private final OrderInventoryRepository orderInventoryRepository;
 
+
+    /**
+     * Método para atualizar inventario, enviar evento para orchestrate ou tratar caso ocorrer algum erro
+     * @param event
+     */
     public void updateInventory(Event event){
 
         try{
+            /** Valida se há uma transação existente - idempotencia**/
             checkCurrentValidation(event);
+            /** Cria OrderInventory utilizando o evento **/
             createOrderInventory(event);
+            /** Atualiza inventario utilizando o evento **/
             updateInventory(event.getPayload());
             handleSuccess(event);
         } catch (Exception e) {
@@ -55,17 +63,38 @@ public class InventoryService {
 
     }
 
+    /**
+     *Método para criar uma novar OrderInventory, primeiro encontra o inventario pelo codigo do produto e trata se for necessario, em seguida cria a nova order e
+     * persiste no banco de dados
+     * @param event
+     */
     private void createOrderInventory(Event event){
         event
              .getPayload()
              .getProducts()
              .forEach(product ->{
+                    /** Procura inventario atraves do codigo do produto **/
                     var inventory = findInventoryByProductCode(product.getProduct().getCode());
+                    /** cria novo OrderIventoru **/
                     var orderInventory = createOrderInventory(event, product, inventory);
                     orderInventoryRepository.save(orderInventory);
              });
     }
+    /** Procura inventario se existir **/
+    private Inventory findInventoryByProductCode(String productCode){
+        return inventoryRepository
+                .findByProductCode(productCode)
+                .orElseThrow(() -> new ValidationException("Inventory not found by informed product code"));
+    }
 
+    /**
+     * Método para criar uma nova OrderInventory, registra quantidade antiga do inventario,
+     * a quantidade do pedido e a nova quantidade, subtraindo disponivel pela quantidad
+     * @param event
+     * @param product
+     * @param inventory
+     * @return
+     */
     private OrderInventory createOrderInventory(Event event, OrderProducts product, Inventory inventory){
         return OrderInventory
                 .builder()
@@ -79,13 +108,11 @@ public class InventoryService {
     }
 
 
-
-    private Inventory findInventoryByProductCode(String productCode){
-        return inventoryRepository
-                .findByProductCode(productCode)
-                .orElseThrow(() -> new ValidationException("Inventory not found by informed product code"));
-    }
-
+    /**
+     *   Atualiza inventario com valores novos. Passa por cada produto, veriifca se existe no inventario, checa se o orderQuantity não é maior que o disponivel e
+     *   atualiza o inventario.
+     * @param order
+     */
     private void updateInventory(Order order){
         order.getProducts().forEach(
                 product -> {
@@ -97,6 +124,11 @@ public class InventoryService {
         );
     }
 
+    /**
+     * Valida se o orderQuantity não é maior que o disponivel
+     * @param available
+     * @param orderQuantity
+     */
     private void checkInventory (int available, int orderQuantity){
         if (orderQuantity > available){
             throw new ValidationException("Product is out of stock!");
@@ -142,10 +174,16 @@ public class InventoryService {
         addHistory(event, "Fail to updated inventory: ".concat(message));
     }
 
+    /**
+     * Método para tratar rollbackEvents, utilizado direto no listener do kafka consumer. Adiciona falha como status, e realiza o rollback.
+     *
+     * @param event
+     */
     public void rollbackInventory(Event event){
         event.setStatus(ESagaStatus.FAIL);
         event.setSource(CURRENT_SOURCE);
         try{
+            /** Faz rollback no inventario **/
             returnInventoryToPreviousValues(event);
             addHistory(event, "Rollback executed for inventory!");
         } catch (Exception e) {
@@ -153,6 +191,12 @@ public class InventoryService {
         }
         producer.sendEvent(jsonUtil.toJson(event));
     }
+
+    /**
+     * Procura no OrderInventory os registros utilizando o id e transactionid, se encontrar, faz a atualização, pegando o valor antigo e inserindo em available.
+     * Em seguida persiste no banco de dados.
+     * @param event
+     */
     private void returnInventoryToPreviousValues(Event event){
         orderInventoryRepository.findByOrderIdAndTransactionId(event.getPayload().getId(), event.getTransactionId())
                 .forEach(orderInventory -> {
