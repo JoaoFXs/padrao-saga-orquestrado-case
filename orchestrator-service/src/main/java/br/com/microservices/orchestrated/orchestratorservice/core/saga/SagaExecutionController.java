@@ -22,6 +22,11 @@ public class SagaExecutionController {
 
     private static final String SAGA_LOG_ID = "ORDER ID: %s | TRANSACTION ID: %s | EVENT ID: %s";
 
+    /**
+     * Método para receber o evento e selecionar o proximo topico a ser enviado pelo orquestrador
+     * @param event
+     * @return
+     */
     public ETopics getNextTopic(Event event){
         if(isEmpty(event.getSource()) || isEmpty(event.getStatus())){
             throw new ValidationException("Source and Status must be Informed!!");
@@ -32,6 +37,11 @@ public class SagaExecutionController {
     }
 
 
+    /**
+     * Procura o proximo topico comparando com os itens da matrix saga_handler
+     * @param event
+     * @return
+     */
     private ETopics findTopicBySourceAndStatus(Event event){
                         //Utiliza uma stream para transformar em array
         return (ETopics) (Arrays.stream(SAGA_HANDLER)
@@ -44,12 +54,23 @@ public class SagaExecutionController {
 
     }
 
+    /**
+     * Valida se o source event e status existem
+     * @param event
+     * @param row
+     * @return
+     */
     private boolean isEventSourceAndStatusValid(Event event, Object[] row){
         var source = row[EVENT_SOURCE_INDEX];
         var status = row[SAGA_STATUS_INDEX];
         return event.getSource().equals(source) && event.getStatus().equals(status);
     }
 
+    /**
+     * Seleciona o tipo de log success, rollback e fail
+     * @param event
+     * @param topic
+     */
     private void logCurrentSaga(Event event, ETopics topic){
             var sagaId = createSagaId(event);
             var source = event.getSource();
@@ -64,6 +85,7 @@ public class SagaExecutionController {
             }
     }
 
+    /** Complemento dos logs para sagaId **/
     private String  createSagaId(Event event){
         return format(SAGA_LOG_ID,
                 event.getPayload().getId(), event.getTransactionId(), event.getId());

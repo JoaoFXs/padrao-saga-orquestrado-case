@@ -1,5 +1,8 @@
 package br.com.microservices.orchestrated.orchestratorservice.core.consumer;
 
+
+import br.com.microservices.orchestrated.orchestratorservice.core.service.OrchestratorService;
+
 import br.com.microservices.orchestrated.orchestratorservice.core.utils.JsonUtil;
 import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
@@ -26,6 +29,9 @@ public class SagaOrchestratorConsumer {
 
     private final JsonUtil jsonUtil;
 
+    private final OrchestratorService orchestratorService;
+
+
     @KafkaListener(
             groupId = "orchestrator-group",
             topics = "start-saga"
@@ -33,6 +39,7 @@ public class SagaOrchestratorConsumer {
     public void consumeStartSagaEvent(String payload){
         log.info("Receiving start saga event {} from {} topic", payload, startSagaTopic);
         var event = jsonUtil.toEvent(payload);
+        orchestratorService.startSaga(event);
         log.info("Event start saga {}", event);
     }
 
@@ -43,6 +50,7 @@ public class SagaOrchestratorConsumer {
     public void consumeOrchestratorEvent(String payload){
         log.info("Receiving orchestrator event {} from {} topic", payload, orchestratorTopic);
         var event = jsonUtil.toEvent(payload);
+        orchestratorService.continueSaga(event);
         log.info("Event orchestrator {}", event);
     }
 
@@ -53,6 +61,7 @@ public class SagaOrchestratorConsumer {
     public void consumeFinishSuccessEvent(String payload){
         log.info("Receiving finish success event {} from {} topic", payload, finishSuccessTopic);
         var event = jsonUtil.toEvent(payload);
+        orchestratorService.finishSagaSuccess(event);
         log.info("Event finish success {}", event);
     }
 
@@ -63,6 +72,7 @@ public class SagaOrchestratorConsumer {
     public void consumeFinishFailEvent(String payload){
         log.info("Receiving finish fail event {} from {} topic", payload, finishFailTopic);
         var event = jsonUtil.toEvent(payload);
+        orchestratorService.finishSagaFail(event);
         log.info("Event finish fail {}", event);
     }
 }
