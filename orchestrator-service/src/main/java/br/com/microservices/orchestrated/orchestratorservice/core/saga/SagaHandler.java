@@ -12,7 +12,7 @@ public final class SagaHandler {
 
     }
 
-    private static final Object [][] SAGA_HANDLER ={
+    public static final Object [][] SAGA_HANDLER ={
             /**
              * Se recebeu como orchestrator, e status success, envia para PRUDUCT_VALIDATION_SERVICE**/
             {ORCHESTRATOR, SUCCESS, PRODUCT_VALIDATION_SUCCESS},
